@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro</title>
+    <!-- CDN do Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Link para o arquivo style.css externo -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            Cadastro
+        </div>
+        <div class="form-card">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">Criar nova Conta</h1>
+            <p class="login-link">Já tem conta? <a href="index.html">Entrar</a></p>
+
+            <form id="registerForm">
+                <div class="form-group mb-4">
+                    <label for="name">NOME</label>
+                    <input type="text" id="name" name="name" placeholder="Digite Seu Nome" required />
+                </div>
+
+                <div class="form-group mb-4">
+                    <label for="email">EMAIL</label>
+                    <input type="email" id="email" name="email" placeholder="seu.email@exemplo.com" required />
+                </div>
+
+                <div class="form-group mb-4">
+                    <label for="password">SENHA</label>
+                    <input type="password" id="password" name="password" placeholder="Mínimo 6 caracteres" required />
+                </div>
+
+                <div class="form-group mb-6">
+                    <label for="dob">DATA DE NASCIMENTO</label>
+                    <div class="select-wrapper">
+                        <select id="dob" name="dob" required>
+                            <option value="">Selecionar</option>
+                            <script>
+                                // Preenche os anos dinamicamente no dropdown
+                                const currentYear = new Date().getFullYear();
+                                for (let i = currentYear; i >= currentYear - 100; i--) {
+                                    document.write(`<option value="${i}">${i}</option>`);
+                                }
+                            </script>
+                        </select>
+                        <span class="dropdown-arrow">&#9660;</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="sign-up-button">Cadastrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Elemento da Caixa de Mensagens -->
+    <div id="messageBox" class="message-box"></div>
+
+    <script type="module">
+        // Função para exibir mensagens na caixa de mensagens personalizada
+        function showMessage(message, type) {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type}`; // Adiciona a classe de tipo (success ou error)
+            messageBox.style.display = 'block'; // Mostra a caixa de mensagens
+
+            // Oculta a mensagem após 3 segundos
+            setTimeout(() => {
+                messageBox.style.animation = 'fadeOut 0.3s ease-out forwards';
+                setTimeout(() => {
+                    messageBox.style.display = 'none';
+                    messageBox.style.animation = ''; // Reseta a animação
+                }, 300);
+            }, 3000);
+        }
+
+        // Lida com o envio do formulário
+        document.getElementById('registerForm').addEventListener('submit', async e => {
+            e.preventDefault(); // Previne o envio padrão do formulário
+
+            // Obtém os valores do formulário
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const dob = document.getElementById('dob').value; 
+
+            // Validação do lado do cliente
+            if (!name || !email || !password || !dob) {
+                showMessage('Por favor, preencha todos os campos.', 'error');
+                return;
+            }
+            if (password.length < 6) {
+                showMessage('A senha deve ter no mínimo 6 caracteres.', 'error');
+                return;
+            }
+            if (!email.includes('@') || !email.includes('.')) { 
+                showMessage('Por favor, insira um email válido.', 'error');
+                return;
+            }
+
+            try {
+                // Faz a requisição POST para o seu backend Node.js
+                const res = await fetch('/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password, dob }) 
+                });
+
+                const data = await res.json(); // Tenta parsear a resposta como JSON
+
+                if (res.ok) { // Verifica se a resposta HTTP é de sucesso (status 2xx)
+                    showMessage(data.message || 'Cadastro realizado com sucesso!', 'success');
+                    // Redireciona para index.html após um pequeno atraso para mostrar a mensagem
+                    setTimeout(() => {
+                        window.location.href = 'index.html'; 
+                    }, 1500);
+                } else {
+                    // Se a resposta não for ok (ex: 400, 500), exibe a mensagem de erro do servidor
+                    showMessage(data.error || 'Erro ao cadastrar. Tente novamente.', 'error');
+                }
+            } catch (error) {
+                console.error("Erro na requisição de registro:", error);
+                showMessage('Não foi possível conectar ao servidor. Verifique sua conexão ou tente novamente mais tarde.', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

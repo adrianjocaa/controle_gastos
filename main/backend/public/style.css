@@ -1,0 +1,326 @@
+/* GLOBAL STYLES - Apply to all elements */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+    background-color: #f0f2f5; /* Background for the entire page */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+}
+
+/* STYLES FROM THE ORIGINAL LOGIN/TWO-COLUMN LAYOUT (If you still need these for other pages or a more complex layout) */
+/* If this page (cadastro.html) only shows the single form, these might not be active,
+   but they are included as requested to "join" the two CSS blocks. */
+.container-login { /* This class seems to define a full-page, two-column layout */
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    /* If you want the form to be centered on a page with no image box,
+       you might need to adjust or remove this container-login flex behavior
+       or redefine .container to be the primary wrapper. */
+}
+
+.img-box { /* Part of the two-column layout - likely not used on the single form registration page */
+    width: 50%;
+    height: 100%;
+    background-color: #5bb4ff;
+    padding: 20px;
+}
+
+.img-box img {
+    width: 100%;
+    height: 100%;
+}
+
+.content-box { /* Part of the two-column layout - might conflict with our '.container' below if both are active */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 50%;
+    height: 100%;
+}
+
+.content-box .form-box { /* Generic form box from the two-column layout. Will be overridden or used differently */
+    width: 50%; /* This might make the form too narrow for our needs, '.form-card' will control it. */
+}
+
+/* Specific styling for social media icons (ul, li) from the first block */
+.content-box .form-box .ul { /* Note: 'ul' is a tag name, not a class. This might need correction in HTML if 'ul' is meant to be a class. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.content-box .form-box .ul li {
+    list-style: none;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    margin: 0 7px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.content-box .form-box .ul li:hover {
+    background: #e4e4e4;
+}
+
+.form-box .ul li img {
+    width: 40px;
+}
+
+.content-box .form-box h2 { /* Generic h2 for form box from the first block */
+    color: #32324f;
+    font-weight: 600;
+    font-size: 2em;
+    text-transform: uppercase;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.content-box .form-box .input-box { /* Generic input box from the first block */
+    margin-bottom: 20px;
+}
+
+.content-box .form-box .input-box input { /* Generic input styling from the first block */
+    width: 100%;
+    padding: 10px;
+    outline: none;
+    font-weight: 400;
+    border: none; /* This will conflict with border: 1px solid #ccc; from .form-group input */
+    font-size: 17px;
+    color: #32324f;
+    background-color: #ecf2f7;
+    border-radius: 5px;
+}
+
+.content-box .form-box .input-box span { /* Generic span for labels from the first block */
+    font-size: 16px;
+    margin-bottom: 5px;
+    display: inline-block;
+    color: #32324f;
+    font-weight: 400;
+}
+
+.content-box .form-box .input-box input::placeholder { /* Placeholder from first block */
+    color: #a9adb6;
+}
+
+.content-box .form-box .input-box input[type=submit] { /* Submit button from first block */
+    background: #4aa4ee;
+    color: #fff;
+    outline: none;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 20px;
+    transition: 0.3s;
+}
+
+.content-box .form-box .input-box input[type=submit]:hover {
+    background: #3286ca;
+}
+
+.content-box .form-box .remember{ /* Remember me/forgot password section from first block */
+    margin-bottom: 20px;
+    color: #32324f;
+    font-weight: 400;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+}
+
+.content-box .form-box .remember a{
+    text-decoration: none;
+    color: #4aa4ee;
+}
+.content-box .form-box .remember a:hover{
+    color: #3286ca;
+}
+
+.content-box .form-box .input-box p { /* Paragraph text in form box */
+    color: #32324f;
+}
+.content-box .form-box .input-box p a{
+    color: #4aa4ee;
+}
+
+.content-box .form-box .input-box p a:hover{
+    color: #3286ca;
+}
+.content-box .form-box h3 { /* Generic h3 from form box */
+    color: #607d8b;
+    text-decoration: none;
+    margin: 40px 0 15px;
+    font-weight: 500;
+    text-align: center;
+    font-size: 22px;
+}
+
+/* MEDIA QUERIES FROM THE ORIGINAL LOGIN/TWO-COLUMN LAYOUT */
+@media (max-width:868px) {
+    .container-login .img-box{
+        display: none;
+    }
+    .container-login .content-box{
+        width: 100%;
+    }
+    .container-login .content-box .form-box{
+        width: 100%;
+        padding: 40px;
+        background: white;
+        margin: 50px;
+    }
+    .container-login .content-box .form-box h3{
+        margin: 30px 0 10px;
+    }
+}
+@media (max-width:450px) {
+    .container-login .content-box .form-box .remember{
+        flex-wrap: wrap;
+    }
+    .container-login .content-box .form-box .remember a{
+        margin-top: 20px;
+    }
+}
+
+
+/* STYLES FOR THE REGISTRATION FORM (PRIORITIZED FOR YOUR CURRENT PAGE) */
+/* These styles are designed for the specific "Criar nova Conta" layout */
+/* Note: body styles were already defined at the top */
+
+.container { /* This is the main wrapper for your registration form */
+    width: 100%;
+    max-width: 800px; /* Adjust as needed */
+    background-color: #fff; /* Main background for the visible form area */
+    border: 1px solid #ddd;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    color: #333;
+    font-size: 1.2em;
+    text-align: left; /* Align '000' to the left */
+}
+
+.form-card {
+    padding: 40px;
+    text-align: center;
+}
+
+.form-card h1 { /* This H1 will override the generic h2/h3 if used directly in .form-card */
+    font-size: 2.2em;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.login-link {
+    font-size: 1em;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.login-link a {
+    color: #000; /* Preto para o link, conforme a imagem */
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+}
+
+.form-group { /* This controls the spacing for each input group */
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 8px;
+    font-weight: bold;
+    text-transform: uppercase; /* Ensure labels are uppercase like in the image */
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"] {
+    width: calc(100% - 20px); /* Account for padding */
+    padding: 12px 10px;
+    border: 1px solid #ccc; /* This is preferred for the registration form */
+    border-radius: 4px;
+    font-size: 1em;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    color: #333; /* Text color for inputs */
+    /* Override 'border: none;' from the first block if it conflicts */
+}
+
+/* Placeholder styling (can be shared) */
+input::placeholder {
+    color: #aaa;
+    font-style: italic;
+}
+
+.select-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.select-wrapper select {
+    appearance: none; /* Remove a seta padrão */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: calc(100% - 20px); /* Account for padding */
+    padding: 12px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+    font-size: 1em;
+    cursor: pointer;
+    box-sizing: border-box;
+    color: #333; /* Text color for select */
+}
+
+.dropdown-arrow {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none; /* Garante que os cliques passem para o elemento select */
+    color: #555;
+}
+
+.sign-up-button { /* This is the specific button for the registration form */
+    background-color: #000;
+    color: #fff;
+    padding: 15px 40px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1.1em;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: background-color 0.3s ease;
+}
+
+.sign-up-button:hover {
+    background-color: #333;
+}
