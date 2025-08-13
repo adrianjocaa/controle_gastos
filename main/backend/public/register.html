@@ -36,22 +36,38 @@
                     <input type="password" id="password" name="password" placeholder="Mínimo 6 caracteres" required />
                 </div>
 
+                <div class="form-group mb-6">
+                    <label for="dob">ANO DE NASCIMENTO</label>
+                    <div class="select-wrapper">
+                        <select id="dob" name="dob" required>
+                            <option value="">Selecionar</option>
+                            <script>
+                                // Preenche os anos dinamicamente no dropdown
+                                const currentYear = new Date().getFullYear();
+                                for (let i = currentYear; i >= currentYear - 100; i--) {
+                                    document.write(`<option value="${i}">${i}</option>`);
+                                }
+                            </script>
+                        </select>
+                        <span class="dropdown-arrow">&#9660;</span>
+                    </div>
+                </div>
 
                 <button type="submit" class="sign-up-button">Cadastrar</button>
             </form>
         </div>
     </div>
 
-    <!-- Elemento da Caixa de Mensagens -->
+   
     <div id="messageBox" class="message-box"></div>
 
     <script type="module">
-        // Função para exibir mensagens na caixa de mensagens personalizada
+       
         function showMessage(message, type) {
             const messageBox = document.getElementById('messageBox');
             messageBox.textContent = message;
-            messageBox.className = `message-box ${type}`; // Adiciona a classe de tipo (success ou error)
-            messageBox.style.display = 'block'; // Mostra a caixa de mensagens
+            messageBox.className = `message-box ${type}`; 
+            messageBox.style.display = 'block'; 
 
             // Oculta a mensagem após 3 segundos
             setTimeout(() => {
@@ -115,4 +131,3 @@
     </script>
 </body>
 </html>
-
