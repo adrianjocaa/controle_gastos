@@ -1,303 +1,435 @@
-const express = require('express');
-const mysql = require('mysql2');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const path = require('path');
+const token = localStorage.getItem('token');
+if (!token) {
+    window.location.href = 'index.html';
+}
 
-const app = express();
-const secret = process.env.secret;
+const gastoForm = document.getElementById('gastoForm');
+const listaGastos = document.getElementById('listaGastos');
+const totalGastosEl = document.getElementById('totalGastos');
+const botoesMeses = document.getElementById('botoes-meses');
+const mensagemEl = document.getElementById('messageBox');
+const semGastosEl = document.getElementById('semGastos');
+const limiteForm = document.getElementById('limiteForm');
+const limiteValorEl = document.getElementById('limite-valor');
+const gastoTotalMesEl = document.getElementById('gasto-total-mes');
+const budgetAlert = document.getElementById('budget-alert');
+const isParceladoCheckbox = document.getElementById('isParcelado');
+const parcelasContainer = document.getElementById('parcelasContainer');
+const parcelasInput = document.getElementById('parcelas');
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
+const pagamentoModal = document.getElementById('pagamentoModal');
+const pagamentoForm = document.getElementById('pagamentoForm');
+const fecharPagamentoModal = document.getElementById('fecharPagamentoModal');
+const pagamentoGastoId = document.getElementById('pagamentoGastoId');
+const pagamentoValorTotal = document.getElementById('pagamentoValorTotal');
+const pagamentoValorPago = document.getElementById('pagamentoValorPago');
+const pagamentoSaldoRestante = document.getElementById('pagamentoSaldoRestante');
 
-const db = mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQL_DATABASE
-});
+const editarModal = document.getElementById('editarModal');
+const editarGastoForm = document.getElementById('editarGastoForm');
+const fecharEditarModal = document.getElementById('fecharEditarModal');
+const editarGastoId = document.getElementById('editarGastoId');
+const editarDescricao = document.getElementById('editarDescricao');
+const editarValor = document.getElementById('editarValor');
+const editarVencimento = document.getElementById('editarVencimento');
 
-db.connect((err) => {
-    if (err) {
-        console.error('Erro ao conectar no MySQL:', err);
+let gastosCache = [];
+let limiteMensal = 0;
+let mesAtual = new Date().getMonth() + 1;
+let anoAtual = new Date().getFullYear();
+
+function showMessage(msg, type = 'success') {
+    mensagemEl.textContent = msg;
+    mensagemEl.className = `message-box ${type}`;
+    mensagemEl.style.display = 'block';
+    setTimeout(() => {
+        mensagemEl.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => {
+            mensagemEl.style.display = 'none';
+            mensagemEl.style.animation = '';
+        }, 300);
+    }, 3000);
+}
+
+async function carregarLimite() {
+    if (mesAtual === 'todos') {
+        limiteMensal = 0;
+        limiteValorEl.textContent = 'R$ 0.00 (Não definido)';
+        budgetAlert.classList.add('hidden');
         return;
     }
-    console.log('Conectado ao MySQL');
-});
-
-const criarTabelas = () => {
-    const usuarios = `CREATE TABLE IF NOT EXISTS usuarios (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(255) UNIQUE,
-        email VARCHAR(320) UNIQUE,
-        password VARCHAR(255)
-    )`;
-
-    const gastos = `CREATE TABLE IF NOT EXISTS gastos (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        usuario_id INT,
-        descricao VARCHAR(255),
-        valor DECIMAL(10,2),
-        valor_pago DECIMAL(10,2) DEFAULT 0,
-        status ENUM('pendente', 'pago', 'parcialmente pago') DEFAULT 'pendente',
-        vencimento DATE,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-    )`;
-
-    const limites_gastos = `CREATE TABLE IF NOT EXISTS limites_gastos (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        usuario_id INT,
-        mes INT,
-        ano INT,
-        limite DECIMAL(10,2),
-        UNIQUE KEY unique_limite (usuario_id, mes, ano),
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-    )`;
-
-    db.query(usuarios, (err) => {
-        if (err) console.error('Erro ao criar tabela usuarios:', err);
-        else console.log('Tabela usuarios verificada/criada.');
-    });
-    db.query(gastos, (err) => {
-        if (err) console.error('Erro ao criar tabela gastos:', err);
-        else console.log('Tabela gastos verificada/criada.');
-    });
-    db.query(limites_gastos, (err) => {
-        if (err) console.error('Erro ao criar tabela limites_gastos:', err);
-        else console.log('Tabela limites_gastos verificada/criada.');
-    });
-};
-
-criarTabelas();
-
-// Função de autenticação de token com logs para depuração
-const autenticarToken = (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if (!token) {
-        console.log('Erro de Autenticação: Token não fornecido.');
-        return res.status(401).json({ error: 'Token não fornecido' });
-    }
-
-    jwt.verify(token, secret, (err, user) => {
-        if (err) {
-            console.log('Erro de Autenticação: Token inválido.', err.message);
-            return res.status(403).json({ error: 'Token inválido' });
-        }
-        console.log('Autenticação bem-sucedida para o usuário:', user.id);
-        req.user = user;
-        next();
-    });
-};
-
-app.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-        return res.status(400).json({ error: 'Por favor, preencha todos os campos.' });
-    }
 
     try {
-        const hash = await bcrypt.hash(password, 10);
-        db.query('INSERT INTO usuarios (username, email, password) VALUES (?, ?, ?)',
-            [name, email, hash],
-            (err) => {
-                if (err) {
-                    if (err.code === 'ER_DUP_ENTRY') {
-                        return res.status(400).json({ error: 'Email ou nome de usuário já existe.' });
-                    }
-                    return res.status(500).json({ error: 'Erro no cadastro. Tente novamente.' });
-                }
-                res.json({ message: 'Usuário registrado com sucesso!' });
-            });
-    } catch (error) {
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
-    }
-});
-
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Por favor, preencha todos os campos.' });
-    }
-
-    const queryParams = [username, username];
-    db.query('SELECT * FROM usuarios WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)', queryParams, async (err, results) => {
-        if (err || results.length === 0) {
-            return res.status(400).json({ error: 'Usuário não encontrado ou senha incorreta.' });
-        }
-        const user = results[0];
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) {
-            return res.status(401).json({ error: 'Usuário não encontrado ou senha incorreta.' });
-        }
-        const token = jwt.sign({ id: user.id }, secret, { expiresIn: '1d' });
-        res.json({ token });
-    });
-});
-
-app.get('/gastos', autenticarToken, (req, res) => {
-    db.query('SELECT * FROM gastos WHERE usuario_id = ? ORDER BY vencimento DESC', [req.user.id], (err, results) => {
-        if (err) return res.status(500).json({ error: 'Erro ao buscar gastos' });
-        res.json(results);
-    });
-});
-
-// NOVO: Rota para POST de gastos com suporte a parcelas
-app.post('/gastos', autenticarToken, async (req, res) => {
-    const { descricao, valor, dia, mes, ano, parcelas = 1 } = req.body;
-    const userId = req.user.id;
-
-    if (!descricao || isNaN(valor) || valor <= 0 || isNaN(dia) || isNaN(mes) || isNaN(ano)) {
-        return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos.' });
-    }
-
-    try {
-        const valorPorParcela = valor / parcelas;
-        const insertPromises = [];
-        const dataVencimento = new Date(ano, mes - 1, dia);
-
-        for (let i = 0; i < parcelas; i++) {
-            const dataParcela = new Date(dataVencimento);
-            dataParcela.setMonth(dataParcela.getMonth() + i);
-
-            // Formata a data para 'YYYY-MM-DD'
-            const vencimentoFormatado = dataParcela.toISOString().split('T')[0];
-
-            insertPromises.push(new Promise((resolve, reject) => {
-                db.query(
-                    'INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)',
-                    [userId, descricao + (parcelas > 1 ? ` (${i + 1}/${parcelas})` : ''), valorPorParcela, vencimentoFormatado],
-                    (err, result) => {
-                        if (err) {
-                            return reject(err);
-                        }
-                        resolve(result);
-                    }
-                );
-            }));
-        }
-
-        await Promise.all(insertPromises);
-
-        res.status(201).json({ message: `${parcelas > 1 ? 'Parcelas' : 'Gasto'} adicionadas com sucesso!` });
-
-    } catch (error) {
-        console.error('Erro ao adicionar gasto(s) parcelado(s):', error);
-        return res.status(500).json({ error: 'Erro ao adicionar o(s) gasto(s). Tente novamente.' });
-    }
-});
-
-app.put('/gastos/pagar/:id', autenticarToken, (req, res) => {
-    const { id } = req.params;
-    const { valor_pagamento } = req.body;
-
-    if (isNaN(valor_pagamento) || valor_pagamento <= 0) {
-        return res.status(400).json({ error: 'O valor do pagamento deve ser um número positivo.' });
-    }
-
-    db.query('SELECT valor, valor_pago FROM gastos WHERE id = ? AND usuario_id = ?', [id, req.user.id], (err, results) => {
-        if (err) return res.status(500).json({ error: 'Erro ao buscar gasto.' });
-        if (results.length === 0) return res.status(404).json({ error: 'Gasto não encontrado ou não pertence ao usuário.' });
-
-        const gasto = results[0];
-        const saldoRestante = gasto.valor - gasto.valor_pago;
-
-        if (valor_pagamento > saldoRestante) {
-            return res.status(400).json({ error: `O valor do pagamento excede o saldo restante de R$ ${saldoRestante.toFixed(2)}.` });
-        }
-
-        const novoValorPago = parseFloat(gasto.valor_pago) + parseFloat(valor_pagamento);
-        let novoStatus = 'parcialmente pago';
-        if (novoValorPago >= gasto.valor) {
-            novoStatus = 'pago';
-        }
-
-        db.query('UPDATE gastos SET valor_pago = ?, status = ? WHERE id = ?', [novoValorPago, novoStatus, id], (err) => {
-            if (err) return res.status(500).json({ error: 'Erro ao registrar pagamento.' });
-            res.json({ message: 'Pagamento registrado com sucesso.', status: novoStatus, valor_pago: novoValorPago });
+        const response = await fetch(`/limite-gastos?mes=${mesAtual}&ano=${anoAtual}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-    });
+
+        if (response.ok) {
+            const data = await response.json();
+            limiteMensal = data.limite || 0;
+            limiteValorEl.textContent = `R$ ${parseFloat(limiteMensal).toFixed(2)}`;
+        } else {
+            limiteMensal = 0;
+            limiteValorEl.textContent = 'R$ 0.00 (Não definido)';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar limite:', error);
+    }
+}
+
+function verificarLimite(total) {
+    if (limiteMensal > 0 && total > limiteMensal) {
+        budgetAlert.classList.remove('hidden');
+        budgetAlert.classList.remove('budget-ok');
+        budgetAlert.classList.add('budget-warning');
+        const excedente = total - limiteMensal;
+        budgetAlert.innerHTML = `<strong>Atenção!</strong> Você excedeu seu limite de gastos em R$ ${excedente.toFixed(2)}.`;
+    } else if (limiteMensal > 0) {
+        budgetAlert.classList.remove('hidden');
+        budgetAlert.classList.remove('budget-warning');
+        budgetAlert.classList.add('budget-ok');
+        const restante = limiteMensal - total;
+        budgetAlert.innerHTML = `<strong>Parabéns!</strong> Você ainda tem R$ ${restante.toFixed(2)} disponíveis.`;
+    } else {
+        budgetAlert.classList.add('hidden');
+    }
+}
+
+async function carregarGastos(mesSelecionado = mesAtual) {
+    mesAtual = mesSelecionado;
+    anoAtual = new Date().getFullYear();
+    await carregarLimite();
+
+    try {
+        const response = await fetch('/gastos', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Erro ao carregar gastos.');
+        }
+
+        gastosCache = await response.json();
+        
+        let gastosFiltrados = gastosCache;
+        let total = 0;
+
+        if (mesSelecionado !== 'todos') {
+            gastosFiltrados = gastosCache.filter(gasto => {
+                const dataVencimento = new Date(gasto.vencimento);
+                return (dataVencimento.getMonth() + 1) === parseInt(mesSelecionado) && dataVencimento.getFullYear() === anoAtual;
+            });
+        }
+        
+        listaGastos.innerHTML = '';
+
+        if (gastosFiltrados.length === 0) {
+            semGastosEl.classList.remove('hidden');
+        } else {
+            semGastosEl.classList.add('hidden');
+            gastosFiltrados.forEach(gasto => {
+                const li = document.createElement('li');
+                li.className = 'caixa-dados-item';
+                
+                const dataVencimento = new Date(gasto.vencimento).toLocaleDateString('pt-BR');
+                const valorFixo = parseFloat(gasto.valor).toFixed(2);
+                const valorPagoFixo = parseFloat(gasto.valor_pago).toFixed(2);
+                
+                let statusClass = '';
+                let statusText = '';
+                if (gasto.status === 'pago') {
+                    statusClass = 'bg-green-200 text-green-800';
+                    statusText = 'Pago';
+                } else if (gasto.status === 'parcialmente pago') {
+                    statusClass = 'bg-yellow-200 text-yellow-800';
+                    statusText = 'Parcialmente Pago';
+                } else {
+                    statusClass = 'bg-red-200 text-red-800';
+                    statusText = 'Pendente';
+                }
+
+                const vencida = new Date(gasto.vencimento) < new Date() && gasto.status !== 'pago';
+                const parcelasInfo = gasto.parcela ? `<p class="text-sm text-gray-500">Parcela ${gasto.parcela} de ${gasto.total_parcelas}</p>` : '';
+
+                li.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center w-full">
+                        <div class="flex-1">
+                            <strong class="text-lg">${gasto.descricao}</strong>
+                            <p class="text-sm text-gray-500">
+                                Vencimento: ${dataVencimento}
+                                ${vencida ? '<span class="text-red-500 font-bold ml-2">VENCIDA!</span>' : ''}
+                            </p>
+                            ${parcelasInfo}
+                            <span class="inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="mt-2 md:mt-0 md:text-right">
+                            <span class="text-lg font-bold">R$ ${valorFixo}</span>
+                            <p class="text-sm text-gray-500">Pago: R$ ${valorPagoFixo}</p>
+                            <div class="flex space-x-2 mt-2">
+                                <button class="btn-pagar bg-green-500 hover:bg-green-600 text-white p-1 rounded-full text-xs" data-id="${gasto.id}">Pagar</button>
+                                <button class="btn-editar bg-blue-500 hover:bg-blue-600 text-white p-1 rounded-full text-xs" data-id="${gasto.id}">Editar</button>
+                                <button class="btn-deletar bg-red-500 hover:bg-red-600 text-white p-1 rounded-full text-xs" data-id="${gasto.id}">Deletar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                listaGastos.appendChild(li);
+                total += parseFloat(gasto.valor);
+            });
+        }
+        
+        totalGastosEl.textContent = `Total: R$ ${total.toFixed(2)}`;
+        gastoTotalMesEl.textContent = `R$ ${total.toFixed(2)}`;
+
+        if (mesSelecionado !== 'todos') {
+            verificarLimite(total);
+        } else {
+            budgetAlert.classList.add('hidden');
+        }
+
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('Não foi possível carregar os gastos.', 'error');
+    }
+}
+
+limiteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const novoLimite = parseFloat(document.getElementById('novoLimite').value);
+
+    if (isNaN(novoLimite) || novoLimite < 0) {
+        showMessage('Por favor, insira um valor válido para o limite.', 'error');
+        return;
+    }
+
+    if (mesAtual === 'todos') {
+        showMessage('Por favor, selecione um mês para definir o limite de gastos.', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/limite-gastos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ limite: novoLimite, mes: mesAtual, ano: anoAtual })
+        });
+
+        if (response.ok) {
+            showMessage('Limite salvo com sucesso!', 'success');
+            limiteForm.reset();
+            carregarGastos(mesAtual);
+        } else {
+            const errorData = await response.json();
+            showMessage(errorData.error || 'Erro ao salvar o limite.', 'error');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('Não foi possível salvar o limite.', 'error');
+    }
 });
 
-app.put('/gastos/:id', autenticarToken, (req, res) => {
-    const id = parseInt(req.params.id);
-    const { descricao, valor, vencimento } = req.body;
-    const userId = req.user.id;
+isParceladoCheckbox.addEventListener('change', (e) => {
+    if (e.target.checked) {
+        parcelasContainer.classList.remove('hidden');
+        parcelasInput.required = true;
+    } else {
+        parcelasContainer.classList.add('hidden');
+        parcelasInput.required = false;
+    }
+});
+
+gastoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const descricao = document.getElementById('descricao').value.trim();
+    const valor = parseFloat(document.getElementById('valor').value);
+    const vencimento = document.getElementById('vencimento').value;
+    const isParcelado = isParceladoCheckbox.checked;
+    const parcelas = isParcelado ? parseInt(parcelasInput.value) : 1;
+    
+    // Separa ano, mes e dia do vencimento
+    const [ano, mes, dia] = vencimento.split('-').map(Number);
+
 
     if (!descricao || isNaN(valor) || valor <= 0 || !vencimento) {
-        return res.status(400).json({ error: 'Dados inválidos para a atualização do gasto.' });
+        showMessage('Por favor, preencha todos os campos corretamente.', 'error');
+        return;
     }
 
-    const updateQuery = 'UPDATE gastos SET descricao = ?, valor = ?, vencimento = ? WHERE id = ? AND usuario_id = ?';
-    db.query(updateQuery, [descricao, valor, vencimento, id, userId], (err, result) => {
-        if (err) {
-            console.error('Erro ao editar gasto:', err);
-            return res.status(500).json({ error: 'Erro ao editar o gasto. Tente novamente.' });
-        }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Gasto não encontrado ou não pertence a este usuário.' });
-        }
-
-        res.status(200).json({ message: 'Gasto editado com sucesso.' });
-    });
-});
-
-app.delete('/gastos/:id', autenticarToken, (req, res) => {
-    const gastoId = parseInt(req.params.id);
-    const userId = req.user.id;
-
-    db.query('DELETE FROM gastos WHERE id = ? AND usuario_id = ?', [gastoId, userId], (err, result) => {
-        if (err) {
-            return res.status(500).json({ error: 'Erro ao deletar o gasto.' });
-        }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Gasto não encontrado ou não pertence a este usuário.' });
-        }
-        res.json({ message: 'Gasto deletado com sucesso.' });
-    });
-});
-
-app.post('/limite-gastos', autenticarToken, (req, res) => {
-    const { limite, mes, ano } = req.body;
-    const userId = req.user.id;
-
-    if (isNaN(limite) || limite < 0 || !mes || !ano) {
-        return res.status(400).json({ error: 'Dados inválidos para o limite.' });
+    if (isParcelado && (!parcelas || parcelas < 2)) {
+        showMessage('O número de parcelas deve ser no mínimo 2.', 'error');
+        return;
     }
 
-    const query = 'INSERT INTO limites_gastos (usuario_id, mes, ano, limite) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE limite = ?';
-    db.query(query, [userId, mes, ano, limite, limite], (err, result) => {
-        if (err) {
-            console.error('Erro ao salvar o limite:', err);
-            return res.status(500).json({ error: 'Erro ao salvar o limite de gastos.' });
+    try {
+        const response = await fetch('/gastos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ descricao, valor, vencimento, parcelas })
+        });
+
+        if (response.ok) {
+            showMessage('Gasto adicionado com sucesso!', 'success');
+            gastoForm.reset();
+            parcelasContainer.classList.add('hidden');
+            isParceladoCheckbox.checked = false;
+            carregarGastos(mesAtual);
+        } else {
+            const errorData = await response.json();
+            showMessage(errorData.error || 'Erro ao adicionar gasto.', 'error');
         }
-        res.status(200).json({ message: 'Limite de gastos salvo com sucesso.' });
-    });
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('Não foi possível adicionar o gasto. Verifique sua conexão ou tente novamente.', 'error');
+    }
 });
 
-app.get('/limite-gastos', autenticarToken, (req, res) => {
-    const { mes, ano } = req.query;
-    const userId = req.user.id;
+botoesMeses.addEventListener('click', (e) => {
+    const botaoClicado = e.target;
+    if (botaoClicado.tagName === 'BUTTON') {
+        botoesMeses.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('bg-blue-500', 'text-white');
+            btn.classList.add('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+        });
+        botaoClicado.classList.add('bg-blue-500', 'text-white');
+        botaoClicado.classList.remove('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+        
+        const mesSelecionado = botaoClicado.dataset.mes;
+        carregarGastos(mesSelecionado);
+    }
+});
 
-    if (!mes || !ano) {
-        return res.status(400).json({ error: 'Por favor, forneça o mês e o ano.' });
+listaGastos.addEventListener('click', async (e) => {
+    const id = e.target.dataset.id;
+    if (!id) return;
+
+    if (e.target.classList.contains('btn-deletar')) {
+        if (confirm('Tem certeza que deseja deletar este gasto?')) {
+            try {
+                const response = await fetch(`/gastos/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showMessage('Gasto deletado com sucesso!', 'success');
+                    carregarGastos(mesAtual);
+                } else {
+                    const errorData = await response.json();
+                    showMessage(errorData.error || 'Erro ao deletar gasto.', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showMessage('Não foi possível deletar o gasto.', 'error');
+            }
+        }
+    } else if (e.target.classList.contains('btn-pagar')) {
+        const gasto = gastosCache.find(g => g.id === parseInt(id));
+        if (gasto) {
+            pagamentoGastoId.value = gasto.id;
+            pagamentoValorTotal.textContent = parseFloat(gasto.valor).toFixed(2);
+            pagamentoValorPago.textContent = parseFloat(gasto.valor_pago).toFixed(2);
+            pagamentoSaldoRestante.textContent = (parseFloat(gasto.valor) - parseFloat(gasto.valor_pago)).toFixed(2);
+            pagamentoModal.classList.add('open');
+        }
+    } else if (e.target.classList.contains('btn-editar')) {
+        const gasto = gastosCache.find(g => g.id === parseInt(id));
+        if (gasto) {
+            const vencimentoGasto = new Date(gasto.vencimento).toISOString().split('T')[0];
+
+            editarGastoId.value = gasto.id;
+            editarDescricao.value = gasto.descricao;
+            editarValor.value = gasto.valor;
+            editarVencimento.value = vencimentoGasto;
+            editarModal.classList.add('open');
+        }
+    }
+});
+
+pagamentoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = pagamentoGastoId.value;
+    const valorPagamento = parseFloat(document.getElementById('valorPagamento').value);
+
+    try {
+        const response = await fetch(`/gastos/pagar/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ valor_pagamento: valorPagamento })
+        });
+
+        if (response.ok) {
+            showMessage('Pagamento registrado com sucesso!', 'success');
+            pagamentoModal.classList.remove('open');
+            pagamentoForm.reset();
+            carregarGastos(mesAtual);
+        } else {
+            const errorData = await response.json();
+            showMessage(errorData.error || 'Erro ao registrar pagamento.', 'error');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('Não foi possível registrar o pagamento.', 'error');
+    }
+});
+
+editarGastoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = editarGastoId.value;
+    const descricao = editarDescricao.value.trim();
+    const valor = parseFloat(editarValor.value);
+    const vencimento = editarVencimento.value;
+
+    if (!descricao || isNaN(valor) || valor <= 0 || !vencimento) {
+        showMessage('Por favor, preencha todos os campos corretamente.', 'error');
+        return;
     }
 
-    const query = 'SELECT limite FROM limites_gastos WHERE usuario_id = ? AND mes = ? AND ano = ?';
-    db.query(query, [userId, mes, ano], (err, result) => {
-        if (err) {
-            console.error('Erro ao buscar o limite:', err);
-            return res.status(500).json({ error: 'Erro ao buscar o limite de gastos.' });
+    try {
+        const response = await fetch(`/gastos/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ descricao, valor, vencimento })
+        });
+
+        if (response.ok) {
+            showMessage('Gasto editado com sucesso!', 'success');
+            editarModal.classList.remove('open');
+            editarGastoForm.reset();
+            carregarGastos(mesAtual);
+        } else {
+            const errorData = await response.json();
+            showMessage(errorData.error || 'Erro ao editar gasto.', 'error');
         }
-        if (result.length === 0) {
-            return res.status(404).json({ error: 'Limite não encontrado para este mês.' });
-        }
-        res.status(200).json(result[0]);
-    });
+    } catch (error) {
+        console.error('Erro:', error);
+        showMessage('Não foi possível editar o gasto.', 'error');
+    }
 });
 
-app.listen(3000, () => {
-    console.log('Servidor rodando na porta 3000');
+fecharPagamentoModal.addEventListener('click', () => {
+    pagamentoModal.classList.remove('open');
 });
+
+fecharEditarModal.addEventListener('click', () => {
+    editarModal.classList.remove('open');
+});
+
+document.getElementById('logout').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    window.location.href = 'index.html';
+});
+
+carregarGastos(mesAtual);
