@@ -13,6 +13,9 @@ const limiteForm = document.getElementById('limiteForm');
 const limiteValorEl = document.getElementById('limite-valor');
 const gastoTotalMesEl = document.getElementById('gasto-total-mes');
 const budgetAlert = document.getElementById('budget-alert');
+const isParceladoCheckbox = document.getElementById('isParcelado');
+const parcelasContainer = document.getElementById('parcelasContainer');
+const parcelasInput = document.getElementById('parcelas');
 
 const pagamentoModal = document.getElementById('pagamentoModal');
 const pagamentoForm = document.getElementById('pagamentoForm');
@@ -49,7 +52,6 @@ function showMessage(msg, type = 'success') {
 }
 
 async function carregarLimite() {
-    // Nova lógica: não tenta buscar o limite se o mês for "todos"
     if (mesAtual === 'todos') {
         limiteMensal = 0;
         limiteValorEl.textContent = 'R$ 0.00 (Não definido)';
@@ -147,6 +149,7 @@ async function carregarGastos(mesSelecionado = mesAtual) {
                 }
 
                 const vencida = new Date(gasto.vencimento) < new Date() && gasto.status !== 'pago';
+                const parcelasInfo = gasto.parcela ? `<p class="text-sm text-gray-500">Parcela ${gasto.parcela} de ${gasto.total_parcelas}</p>` : '';
 
                 li.innerHTML = `
                     <div class="flex flex-col md:flex-row md:justify-between md:items-center w-full">
@@ -156,6 +159,7 @@ async function carregarGastos(mesSelecionado = mesAtual) {
                                 Vencimento: ${dataVencimento}
                                 ${vencida ? '<span class="text-red-500 font-bold ml-2">VENCIDA!</span>' : ''}
                             </p>
+                            ${parcelasInfo}
                             <span class="inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">${statusText}</span>
                         </div>
                         <div class="mt-2 md:mt-0 md:text-right">
@@ -177,7 +181,6 @@ async function carregarGastos(mesSelecionado = mesAtual) {
         totalGastosEl.textContent = `Total: R$ ${total.toFixed(2)}`;
         gastoTotalMesEl.textContent = `R$ ${total.toFixed(2)}`;
 
-        // Somente verifica o limite se não for "todos"
         if (mesSelecionado !== 'todos') {
             verificarLimite(total);
         } else {
@@ -199,7 +202,6 @@ limiteForm.addEventListener('submit', async (e) => {
         return;
     }
 
-    // Não permite salvar limite se o filtro "Todos" estiver ativo
     if (mesAtual === 'todos') {
         showMessage('Por favor, selecione um mês para definir o limite de gastos.', 'error');
         return;
@@ -229,15 +231,36 @@ limiteForm.addEventListener('submit', async (e) => {
     }
 });
 
+isParceladoCheckbox.addEventListener('change', (e) => {
+    if (e.target.checked) {
+        parcelasContainer.classList.remove('hidden');
+        parcelasInput.required = true;
+    } else {
+        parcelasContainer.classList.add('hidden');
+        parcelasInput.required = false;
+    }
+});
+
 gastoForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const descricao = document.getElementById('descricao').value.trim();
     const valor = parseFloat(document.getElementById('valor').value);
     const vencimento = document.getElementById('vencimento').value;
+    const isParcelado = isParceladoCheckbox.checked;
+    const parcelas = isParcelado ? parseInt(parcelasInput.value) : 1;
+    
+    // Separa ano, mes e dia do vencimento
+    const [ano, mes, dia] = vencimento.split('-').map(Number);
+
 
     if (!descricao || isNaN(valor) || valor <= 0 || !vencimento) {
         showMessage('Por favor, preencha todos os campos corretamente.', 'error');
+        return;
+    }
+
+    if (isParcelado && (!parcelas || parcelas < 2)) {
+        showMessage('O número de parcelas deve ser no mínimo 2.', 'error');
         return;
     }
 
@@ -248,13 +271,15 @@ gastoForm.addEventListener('submit', async (e) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ descricao, valor, vencimento })
+            body: JSON.stringify({ descricao, valor, vencimento, parcelas })
         });
 
         if (response.ok) {
             showMessage('Gasto adicionado com sucesso!', 'success');
             gastoForm.reset();
-            carregarGastos('todos');
+            parcelasContainer.classList.add('hidden');
+            isParceladoCheckbox.checked = false;
+            carregarGastos(mesAtual);
         } else {
             const errorData = await response.json();
             showMessage(errorData.error || 'Erro ao adicionar gasto.', 'error');
