@@ -36,7 +36,6 @@ const criarTabelas = () => {
         password VARCHAR(255)
     )`;
 
-    // Tabela de gastos atualizada com colunas de parcelamento
     const gastos = `CREATE TABLE IF NOT EXISTS gastos (
         id INT AUTO_INCREMENT PRIMARY KEY,
         usuario_id INT,
@@ -76,7 +75,6 @@ const criarTabelas = () => {
 
 criarTabelas();
 
-// Função de autenticação de token com logs para depuração
 const autenticarToken = (req, res, next) => {
     const token = req.headers['authorization']?.split(' ')[1];
     if (!token) {
@@ -141,8 +139,23 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/gastos', autenticarToken, (req, res) => {
-    db.query('SELECT * FROM gastos WHERE usuario_id = ? ORDER BY vencimento DESC', [req.user.id], (err, results) => {
-        if (err) return res.status(500).json({ error: 'Erro ao buscar gastos' });
+    const { mes, ano } = req.query;
+    const userId = req.user.id;
+    let query = 'SELECT * FROM gastos WHERE usuario_id = ?';
+    const params = [userId];
+
+    if (mes && ano) {
+        query += ' AND MONTH(vencimento) = ? AND YEAR(vencimento) = ?';
+        params.push(mes, ano);
+    }
+
+    query += ' ORDER BY vencimento DESC';
+
+    db.query(query, params, (err, results) => {
+        if (err) {
+            console.error('Erro ao buscar gastos:', err);
+            return res.status(500).json({ error: 'Erro ao buscar gastos' });
+        }
         res.json(results);
     });
 });
@@ -155,7 +168,6 @@ app.post('/gastos', autenticarToken, async (req, res) => {
         return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos.' });
     }
     
-    // Converte a string de vencimento para um objeto Date
     const dataVencimentoOriginal = new Date(vencimento);
 
     try {
@@ -166,7 +178,6 @@ app.post('/gastos', autenticarToken, async (req, res) => {
             const dataParcela = new Date(dataVencimentoOriginal);
             dataParcela.setMonth(dataParcela.getMonth() + i);
 
-            // Formata a data para 'YYYY-MM-DD'
             const vencimentoFormatado = dataParcela.toISOString().split('T')[0];
             const descricaoParcela = parcelas > 1 ? `${descricao} (${i + 1}/${parcelas})` : descricao;
 
