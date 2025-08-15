@@ -7,16 +7,16 @@ const bodyParser = require('body-parser');
 const path = require('path');
 
 const app = express();
-const secret = process.env.secret;
+const secret = process.env.secret; 
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const db = mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
+    host: process.env.MYSQL_HOST,
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE
 });
 
@@ -32,7 +32,7 @@ const criarTabelas = () => {
     const usuarios = `CREATE TABLE IF NOT EXISTS usuarios (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(255) UNIQUE,
-        email VARCHAR(320) UNIQUE,
+        email VARCHAR(320) UNIQUE, 
         password VARCHAR(255)
     )`;
 
@@ -44,8 +44,6 @@ const criarTabelas = () => {
         valor_pago DECIMAL(10,2) DEFAULT 0,
         status ENUM('pendente', 'pago', 'parcialmente pago') DEFAULT 'pendente',
         vencimento DATE,
-        parcela INT DEFAULT 1,
-        total_parcelas INT DEFAULT 1,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
     )`;
 
@@ -75,6 +73,7 @@ const criarTabelas = () => {
 
 criarTabelas();
 
+// Função de autenticação de token com logs para depuração
 const autenticarToken = (req, res, next) => {
     const token = req.headers['authorization']?.split(' ')[1];
     if (!token) {
@@ -139,69 +138,27 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/gastos', autenticarToken, (req, res) => {
-    const { mes, ano } = req.query;
-    const userId = req.user.id;
-    let query = 'SELECT * FROM gastos WHERE usuario_id = ?';
-    const params = [userId];
-
-    if (mes && ano) {
-        query += ' AND MONTH(vencimento) = ? AND YEAR(vencimento) = ?';
-        params.push(mes, ano);
-    }
-
-    query += ' ORDER BY vencimento DESC';
-
-    db.query(query, params, (err, results) => {
-        if (err) {
-            console.error('Erro ao buscar gastos:', err);
-            return res.status(500).json({ error: 'Erro ao buscar gastos' });
-        }
+    db.query('SELECT * FROM gastos WHERE usuario_id = ? ORDER BY vencimento DESC', [req.user.id], (err, results) => {
+        if (err) return res.status(500).json({ error: 'Erro ao buscar gastos' });
         res.json(results);
     });
 });
 
-app.post('/gastos', autenticarToken, async (req, res) => {
-    const { descricao, valor, vencimento, parcelas = 1 } = req.body;
-    const userId = req.user.id;
+app.post('/gastos', autenticarToken, (req, res) => {
+    const { descricao, valor, vencimento } = req.body;
 
     if (!descricao || isNaN(valor) || valor <= 0 || !vencimento) {
-        return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos.' });
+        return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos para o gasto.' });
     }
-    
-    const dataVencimentoOriginal = new Date(vencimento);
 
-    try {
-        const valorPorParcela = valor / parcelas;
-        const insertPromises = [];
-
-        for (let i = 0; i < parcelas; i++) {
-            const dataParcela = new Date(dataVencimentoOriginal);
-            dataParcela.setMonth(dataParcela.getMonth() + i);
-
-            const vencimentoFormatado = dataParcela.toISOString().split('T')[0];
-            const descricaoParcela = parcelas > 1 ? `${descricao} (${i + 1}/${parcelas})` : descricao;
-
-            insertPromises.push(new Promise((resolve, reject) => {
-                db.query(
-                    'INSERT INTO gastos (usuario_id, descricao, valor, vencimento, parcela, total_parcelas) VALUES (?, ?, ?, ?, ?, ?)',
-                    [userId, descricaoParcela, valorPorParcela, vencimentoFormatado, i + 1, parcelas],
-                    (err, result) => {
-                        if (err) {
-                            return reject(err);
-                        }
-                        resolve(result);
-                    }
-                );
-            }));
-        }
-
-        await Promise.all(insertPromises);
-        res.status(201).json({ message: `${parcelas > 1 ? 'Parcelas' : 'Gasto'} adicionado(s) com sucesso!` });
-
-    } catch (error) {
-        console.error('Erro ao adicionar gasto(s) parcelado(s):', error);
-        return res.status(500).json({ error: 'Erro ao adicionar o(s) gasto(s). Tente novamente.' });
-    }
+    db.query('INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)',
+        [req.user.id, descricao, valor, vencimento],
+        (err, result) => {
+            if (err) {
+                return res.status(500).json({ error: 'Erro ao adicionar gasto' });
+            }
+            res.status(201).json({ id: result.insertId, descricao, valor, vencimento, valor_pago: 0, status: 'pendente' });
+        });
 });
 
 app.put('/gastos/pagar/:id', autenticarToken, (req, res) => {
@@ -315,4 +272,5 @@ app.get('/limite-gastos', autenticarToken, (req, res) => {
 
 app.listen(3000, () => {
     console.log('Servidor rodando na porta 3000');
+
 });
