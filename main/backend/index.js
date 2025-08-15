@@ -7,7 +7,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 
 const app = express();
-const secret = process.env.secret; 
+const secret = process.env.secret;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -32,7 +32,7 @@ const criarTabelas = () => {
     const usuarios = `CREATE TABLE IF NOT EXISTS usuarios (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(255) UNIQUE,
-        email VARCHAR(320) UNIQUE, 
+        email VARCHAR(320) UNIQUE,
         password VARCHAR(255)
     )`;
 
@@ -144,21 +144,49 @@ app.get('/gastos', autenticarToken, (req, res) => {
     });
 });
 
-app.post('/gastos', autenticarToken, (req, res) => {
-    const { descricao, valor, vencimento } = req.body;
+// NOVO: Rota para POST de gastos com suporte a parcelas
+app.post('/gastos', autenticarToken, async (req, res) => {
+    const { descricao, valor, dia, mes, ano, parcelas = 1 } = req.body;
+    const userId = req.user.id;
 
-    if (!descricao || isNaN(valor) || valor <= 0 || !vencimento) {
-        return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos para o gasto.' });
+    if (!descricao || isNaN(valor) || valor <= 0 || isNaN(dia) || isNaN(mes) || isNaN(ano)) {
+        return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos.' });
     }
 
-    db.query('INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)',
-        [req.user.id, descricao, valor, vencimento],
-        (err, result) => {
-            if (err) {
-                return res.status(500).json({ error: 'Erro ao adicionar gasto' });
-            }
-            res.status(201).json({ id: result.insertId, descricao, valor, vencimento, valor_pago: 0, status: 'pendente' });
-        });
+    try {
+        const valorPorParcela = valor / parcelas;
+        const insertPromises = [];
+        const dataVencimento = new Date(ano, mes - 1, dia);
+
+        for (let i = 0; i < parcelas; i++) {
+            const dataParcela = new Date(dataVencimento);
+            dataParcela.setMonth(dataParcela.getMonth() + i);
+
+            // Formata a data para 'YYYY-MM-DD'
+            const vencimentoFormatado = dataParcela.toISOString().split('T')[0];
+
+            insertPromises.push(new Promise((resolve, reject) => {
+                db.query(
+                    'INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)',
+                    [userId, descricao + (parcelas > 1 ? ` (${i + 1}/${parcelas})` : ''), valorPorParcela, vencimentoFormatado],
+                    (err, result) => {
+                        if (err) {
+                            return reject(err);
+                        }
+                        resolve(result);
+                    }
+                );
+            }));
+        }
+
+        await Promise.all(insertPromises);
+
+        res.status(201).json({ message: `${parcelas > 1 ? 'Parcelas' : 'Gasto'} adicionadas com sucesso!` });
+
+    } catch (error) {
+        console.error('Erro ao adicionar gasto(s) parcelado(s):', error);
+        return res.status(500).json({ error: 'Erro ao adicionar o(s) gasto(s). Tente novamente.' });
+    }
 });
 
 app.put('/gastos/pagar/:id', autenticarToken, (req, res) => {
@@ -272,6 +300,4 @@ app.get('/limite-gastos', autenticarToken, (req, res) => {
 
 app.listen(3000, () => {
     console.log('Servidor rodando na porta 3000');
-
 });
-
