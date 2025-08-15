@@ -94,9 +94,6 @@
     .budget-ok {
         @apply bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4;
     }
-    .hidden {
-      display: none;
-    }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center py-8">
@@ -120,7 +117,7 @@
         <input type="number" step="0.01" id="novoLimite" placeholder="Novo Limite Mensal (R$)" required
                class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <button type="submit"
-                 class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out">
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out">
           Salvar Limite
         </button>
       </form>
@@ -133,15 +130,6 @@
                class="col-span-full md:col-span-2 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <input type="number" step="0.01" id="valor" placeholder="Valor (R$)" required
                class="col-span-full md:col-span-2 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        
-        <div class="col-span-full flex items-center">
-            <input type="checkbox" id="isParcelado" class="mr-2">
-            <label for="isParcelado" class="text-gray-700 font-bold">Gasto Parcelado?</label>
-        </div>
-        <div id="parcelasContainer" class="col-span-full hidden">
-            <label for="parcelas" class="block text-gray-700 font-bold mb-2">Número de Parcelas:</label>
-            <input type="number" id="parcelas" min="2" value="2" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
         <input type="date" id="vencimento" required
                class="col-span-full md:col-span-4 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <button type="submit"
@@ -225,76 +213,6 @@
       </div>
   </div>
 
-  <script type="module">
-    // Lógica para mostrar/ocultar o campo de parcelas
-    document.getElementById('isParcelado').addEventListener('change', (e) => {
-        const parcelasContainer = document.getElementById('parcelasContainer');
-        if (e.target.checked) {
-            parcelasContainer.classList.remove('hidden');
-            document.getElementById('parcelas').required = true;
-        } else {
-            parcelasContainer.classList.add('hidden');
-            document.getElementById('parcelas').required = false;
-        }
-    });
-
-    // Lógica para enviar o formulário
-    const gastoForm = document.getElementById('gastoForm');
-    gastoForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // Verifica se o token existe antes de fazer a requisição
-        const token = localStorage.getItem('token');
-        if (!token) {
-            alert('Sessão expirada. Faça login novamente.');
-            window.location.href = 'index.html';
-            return;
-        }
-
-        const descricao = document.getElementById('descricao').value;
-        const valor = parseFloat(document.getElementById('valor').value);
-        const vencimento = document.getElementById('vencimento').value;
-        const isParcelado = document.getElementById('isParcelado').checked;
-        const parcelas = isParcelado ? parseInt(document.getElementById('parcelas').value) : 1;
-        
-        // Separa dia, mes e ano do vencimento
-        const [ano, mes, dia] = vencimento.split('-').map(Number);
-
-        if (isParcelado && (!parcelas || parcelas < 2)) {
-            alert('O número de parcelas deve ser no mínimo 2.');
-            return;
-        }
-
-        try {
-            const res = await fetch('https://controlegastos-production.up.railway.app/gastos', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ descricao, valor, dia, mes, ano, parcelas })
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                alert(data.message);
-                gastoForm.reset();
-                document.getElementById('parcelasContainer').classList.add('hidden');
-                // Adicione a função para recarregar a lista de gastos aqui, se tiver
-                // carregarGastos();
-            } else {
-                alert(data.error || 'Erro ao adicionar gasto.');
-            }
-        } catch (error) {
-            console.error('Erro ao adicionar gasto:', error);
-            alert('Não foi possível conectar ao servidor.');
-        }
-    });
-
-    // Remova o script.js do seu projeto
-    // O código acima substitui a necessidade do arquivo externo.
-
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
