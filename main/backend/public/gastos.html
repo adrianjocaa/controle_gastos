@@ -1,255 +1,300 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de Gastos</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meus Gastos - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f0f2f5;
+    }
+    .caixa-dados-item {
+      @apply bg-white p-4 rounded-lg shadow-sm mb-2 flex flex-col md:flex-row md:justify-between md:items-center;
+    }
+    .caixa-dados-item strong {
+      @apply text-gray-800;
+    }
+    .caixa-dados-item span {
+      @apply text-gray-600 font-medium;
+    }
+    .message-box {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 1rem 1.5rem;
+      border-radius: 0.75rem;
+      font-weight: 500;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      animation: fadeIn 0.3s ease-out;
+    }
+    .message-box.success {
+      background-color: #d1fae5;
+      color: #065f46;
+      border: 1px solid #34d399;
+    }
+    .message-box.error {
+      background-color: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #ef4444;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; transform: translateX(-50%) translateY(0); }
+      to { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    }
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1001;
+        opacity: 0;
+        visibility: hidden;
+        transition: visibility 0s, opacity 0.3s;
+    }
+    .modal.open {
+        visibility: visible;
+        opacity: 1;
+    }
+    .modal-content {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 0.75rem;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .month-card {
+        @apply bg-white p-4 rounded-lg shadow-md transition-shadow duration-300 cursor-pointer;
+    }
+    .month-card:hover {
+        @apply shadow-lg;
+    }
+    .month-card.active {
+        @apply ring-2 ring-blue-500;
+    }
+    .budget-warning {
+        @apply bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4;
+    }
+    .budget-ok {
+        @apply bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 font-inter">
+<body class="bg-gray-100 min-h-screen flex flex-col items-center py-8">
 
-    <nav class="bg-white p-4 shadow-md flex justify-between items-center fixed top-0 left-0 w-full z-10">
-        <h1 class="text-2xl font-bold text-gray-800">Controle de Gastos</h1>
-        <button id="logoutBtn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 focus:outline-none">
-            Sair
+  <div class="container bg-white rounded-xl shadow-lg p-6 md:p-8 w-full max-w-4xl">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold text-gray-800">Meus Gastos</h1>
+      <div class="flex space-x-2">
+        <button id="logout" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">Sair</button>
+      </div>
+    </div>
+    
+    <div class="bg-gray-50 p-6 rounded-lg shadow-md mb-8">
+      <h2 class="text-2xl font-semibold text-gray-700 mb-4">Limite de Gastos Mensal</h2>
+      <div id="limite-status">
+        <p class="text-gray-600 mb-2">Limite atual: <strong id="limite-valor">R$ 0.00</strong></p>
+        <p class="text-gray-600 mb-4">Gasto total do mês: <strong id="gasto-total-mes">R$ 0.00</strong></p>
+        <div id="budget-alert" class="hidden"></div>
+      </div>
+      <form id="limiteForm" class="flex flex-col md:flex-row gap-4 mt-4">
+        <input type="number" step="0.01" id="novoLimite" placeholder="Novo Limite Mensal (R$)" required
+               class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button type="submit"
+                 class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out">
+          Salvar Limite
         </button>
-    </nav>
-    <div class="h-16"></div> <div class="container mx-auto p-4 flex flex-col md:flex-row gap-4">
-        <div class="w-full md:w-1/3 flex flex-col gap-4">
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h3 class="text-xl font-semibold text-gray-700 mb-4">Filtrar Gastos</h3>
-                <div class="flex flex-wrap gap-2 mb-4">
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="1">Jan</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="2">Fev</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="3">Mar</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="4">Abr</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="5">Mai</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="6">Jun</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="7">Jul</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="8">Ago</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="9">Set</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="10">Out</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="11">Nov</button>
-                    <button class="filter-btn px-4 py-2 bg-gray-200 rounded-md text-gray-700 font-semibold" data-month="12">Dez</button>
-                </div>
-                <div class="mb-4">
-                    <label for="anoSelect" class="block text-gray-700 font-bold mb-2">Ano:</label>
-                    <select id="anoSelect" class="w-full px-3 py-2 border rounded-md"></select>
-                </div>
-            </div>
-            
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h3 class="text-xl font-semibold text-gray-700 mb-4">Resumo do Mês</h3>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-gray-600 font-semibold">Total de Gastos:</span>
-                    <span id="totalGastos" class="text-lg font-bold text-gray-800">R$ 0,00</span>
-                </div>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-gray-600 font-semibold">Total de Pagos:</span>
-                    <span id="totalPagos" class="text-lg font-bold text-green-500">R$ 0,00</span>
-                </div>
-                <div class="flex justify-between items-center mb-4">
-                    <span class="text-gray-600 font-semibold">Saldo Restante:</span>
-                    <span id="saldoRestante" class="text-lg font-bold text-yellow-500">R$ 0,00</span>
-                </div>
-                <div class="bg-gray-100 p-4 rounded-md">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-gray-600 font-semibold">Limite de Gastos:</span>
-                        <span id="limiteGastos" class="text-lg font-bold text-blue-500">R$ 0,00 (Não definido)</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h3 class="text-xl font-semibold text-gray-700 mb-4">Limite de Gastos Mensal</h3>
-                <div class="flex items-center gap-2">
-                    <input type="number" id="limiteInput" step="0.01" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:border-blue-500" placeholder="Ex: 1500.00">
-                    <button id="salvarLimiteBtn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none">
-                        Salvar
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="w-full md:w-2/3 flex flex-col gap-4">
-            <form id="gastoForm" class="bg-white p-6 rounded-lg shadow-md">
-                <h3 class="text-xl font-semibold text-gray-700 mb-4">Adicionar Novo Gasto</h3>
-
-                <div class="mb-4">
-                    <label for="descricao" class="block text-gray-700 font-bold mb-2">Descrição:</label>
-                    <input type="text" id="descricao" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:border-blue-500" placeholder="Ex: Conta de Luz" required>
-                </div>
-
-                <div class="mb-4">
-                    <label for="valor" class="block text-gray-700 font-bold mb-2">Valor Total:</label>
-                    <input type="number" id="valor" step="0.01" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:border-blue-500" placeholder="Ex: 150.00" required>
-                </div>
-
-                <div class="mb-4 flex items-center">
-                    <input type="checkbox" id="isParcelado" class="mr-2">
-                    <label for="isParcelado" class="text-gray-700 font-bold">Gasto Parcelado?</label>
-                </div>
-                <div id="parcelasContainer" class="mb-4 hidden">
-                    <label for="parcelas" class="block text-gray-700 font-bold mb-2">Número de Parcelas:</label>
-                    <input type="number" id="parcelas" min="2" value="2" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:border-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2">Vencimento da Primeira Parcela:</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <input type="number" id="dia" class="px-3 py-2 border rounded-md" placeholder="Dia" min="1" max="31" required>
-                        <input type="number" id="mes" class="px-3 py-2 border rounded-md" placeholder="Mês" min="1" max="12" required>
-                        <input type="number" id="ano" class="px-3 py-2 border rounded-md" placeholder="Ano" min="2000" required>
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none">
-                    Adicionar Gasto
-                </button>
-            </form>
-
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h3 class="text-xl font-semibold text-gray-700 mb-4">Meus Gastos</h3>
-                <div id="gastosLista" class="space-y-4">
-                    <p class="text-gray-500 text-center">Nenhum gasto cadastrado para este mês.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div id="editModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <h2 class="text-xl font-bold mb-4">Editar Gasto</h2>
-            <form id="editForm">
-                <input type="hidden" id="editGastoId">
-                <div class="form-group mb-4">
-                    <label for="editDescricao">Descrição</label>
-                    <input type="text" id="editDescricao" required>
-                </div>
-                <div class="form-group mb-4">
-                    <label for="editValor">Valor</label>
-                    <input type="number" id="editValor" step="0.01" required>
-                </div>
-                <div class="form-group mb-4">
-                    <label for="editVencimento">Vencimento</label>
-                    <input type="date" id="editVencimento" required>
-                </div>
-                <div class="flex justify-end gap-2 mt-4">
-                    <button type="button" class="btn-cancel" id="cancelEditBtn">Cancelar</button>
-                    <button type="submit" class="btn-save">Salvar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <div id="pagarModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <h2 class="text-xl font-bold mb-4">Pagar Gasto</h2>
-            <form id="pagarForm">
-                <input type="hidden" id="pagarGastoId">
-                <div class="form-group mb-4">
-                    <label for="pagarDescricao">Descrição</label>
-                    <input type="text" id="pagarDescricao" readonly class="bg-gray-100">
-                </div>
-                <div class="form-group mb-4">
-                    <label for="pagarValor">Valor a ser Pago</label>
-                    <input type="number" id="pagarValor" step="0.01" required>
-                    <p class="text-sm text-gray-500 mt-1">Saldo restante: <span id="pagarSaldoRestante">R$ 0,00</span></p>
-                </div>
-                <div class="flex justify-end gap-2 mt-4">
-                    <button type="button" class="btn-cancel" id="cancelPagarBtn">Cancelar</button>
-                    <button type="submit" class="btn-save">Pagar</button>
-                </div>
-            </form>
-        </div>
+      </form>
     </div>
 
-    <script type="module">
-        // Adiciona a lógica para exibir/ocultar o campo de parcelas
-        document.getElementById('isParcelado').addEventListener('change', (e) => {
-            const parcelasContainer = document.getElementById('parcelasContainer');
-            if (e.target.checked) {
-                parcelasContainer.classList.remove('hidden');
-                document.getElementById('parcelas').required = true;
+    <div class="bg-gray-50 p-6 rounded-lg shadow-md mb-8">
+      <h2 class="text-2xl font-semibold text-gray-700 mb-4">Adicionar Novo Gasto</h2>
+      <form id="gastoForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <input type="text" id="descricao" placeholder="Descrição do Gasto" required
+               class="col-span-full md:col-span-2 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="number" step="0.01" id="valor" placeholder="Valor (R$)" required
+               class="col-span-full md:col-span-2 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        
+        <div class="col-span-full flex items-center">
+            <input type="checkbox" id="isParcelado" class="mr-2">
+            <label for="isParcelado" class="text-gray-700 font-bold">Gasto Parcelado?</label>
+        </div>
+        <div id="parcelasContainer" class="col-span-full hidden">
+            <label for="parcelas" class="block text-gray-700 font-bold mb-2">Número de Parcelas:</label>
+            <input type="number" id="parcelas" min="2" value="2" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <input type="date" id="vencimento" required
+               class="col-span-full md:col-span-4 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button type="submit"
+                class="col-span-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md transition duration-300 ease-in-out">
+          Adicionar Gasto
+        </button>
+      </form>
+    </div>
+
+    <div class="mb-6 flex flex-wrap gap-2 justify-center" id="botoes-meses">
+      <button data-mes="todos" class="px-4 py-2 rounded-full text-sm font-medium bg-blue-500 text-white">Todos</button>
+      <button data-mes="1" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Jan</button>
+      <button data-mes="2" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Fev</button>
+      <button data-mes="3" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Mar</button>
+      <button data-mes="4" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Abr</button>
+      <button data-mes="5" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Mai</button>
+      <button data-mes="6" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Jun</button>
+      <button data-mes="7" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Jul</button>
+      <button data-mes="8" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Ago</button>
+      <button data-mes="9" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Set</button>
+      <button data-mes="10" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Out</button>
+      <button data-mes="11" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Nov</button>
+      <button data-mes="12" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-800 hover:bg-gray-300">Dez</button>
+    </div>
+
+    <div id="gastosPorMesDetalhado" class="bg-gray-50 p-6 rounded-lg shadow-md">
+      <h2 class="text-2xl font-semibold text-gray-700 mb-4">Gastos Detalhados</h2>
+      <ul id="listaGastos" class="space-y-3">
+          </ul>
+      <div id="totalGastos" class="text-right mt-4 font-bold text-lg text-gray-800">
+        Total: R$ 0.00
+      </div>
+      <p id="semGastos" class="text-gray-500 italic hidden">Nenhum gasto registrado para o mês selecionado.</p>
+    </div>
+  </div>
+
+  <div id="messageBox" class="message-box"></div>
+
+  <div id="pagamentoModal" class="modal">
+      <div class="modal-content">
+          <h3 class="text-xl font-bold mb-4">Registrar Pagamento</h3>
+          <form id="pagamentoForm">
+              <input type="hidden" id="pagamentoGastoId">
+              <p class="mb-4">Valor total: R$ <span id="pagamentoValorTotal"></span></p>
+              <p class="mb-4">Valor já pago: R$ <span id="pagamentoValorPago"></span></p>
+              <p class="mb-4">Saldo restante: R$ <span id="pagamentoSaldoRestante"></span></p>
+              <div class="mb-4">
+                  <label for="valorPagamento" class="block text-gray-700">Valor a pagar:</label>
+                  <input type="number" step="0.01" id="valorPagamento" required class="w-full mt-1 p-2 border rounded-lg">
+              </div>
+              <div class="flex justify-end gap-2">
+                  <button type="button" id="fecharPagamentoModal" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-lg">Cancelar</button>
+                  <button type="submit" class="bg-green-600 text-white py-2 px-4 rounded-lg">Pagar</button>
+              </div>
+          </form>
+      </div>
+  </div>
+
+  <div id="editarModal" class="modal">
+      <div class="modal-content">
+          <h3 class="text-xl font-bold mb-4">Editar Gasto</h3>
+          <form id="editarGastoForm">
+              <input type="hidden" id="editarGastoId">
+              <div class="mb-4">
+                  <label for="editarDescricao" class="block text-gray-700">Descrição:</label>
+                  <input type="text" id="editarDescricao" required class="w-full mt-1 p-2 border rounded-lg">
+              </div>
+              <div class="mb-4">
+                  <label for="editarValor" class="block text-gray-700">Valor:</label>
+                  <input type="number" step="0.01" id="editarValor" required class="w-full mt-1 p-2 border rounded-lg">
+              </div>
+              <div class="mb-4">
+                  <label for="editarVencimento" class="block text-gray-700">Data de Vencimento:</label>
+                  <input type="date" id="editarVencimento" required class="w-full mt-1 p-2 border rounded-lg">
+              </div>
+              <div class="flex justify-end gap-2">
+                  <button type="button" id="fecharEditarModal" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-lg">Cancelar</button>
+                  <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg">Salvar</button>
+              </div>
+          </form>
+      </div>
+  </div>
+
+  <script type="module">
+    // Lógica para mostrar/ocultar o campo de parcelas
+    document.getElementById('isParcelado').addEventListener('change', (e) => {
+        const parcelasContainer = document.getElementById('parcelasContainer');
+        if (e.target.checked) {
+            parcelasContainer.classList.remove('hidden');
+            document.getElementById('parcelas').required = true;
+        } else {
+            parcelasContainer.classList.add('hidden');
+            document.getElementById('parcelas').required = false;
+        }
+    });
+
+    // Lógica para enviar o formulário
+    const gastoForm = document.getElementById('gastoForm');
+    gastoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Verifica se o token existe antes de fazer a requisição
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('Sessão expirada. Faça login novamente.');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        const descricao = document.getElementById('descricao').value;
+        const valor = parseFloat(document.getElementById('valor').value);
+        const vencimento = document.getElementById('vencimento').value;
+        const isParcelado = document.getElementById('isParcelado').checked;
+        const parcelas = isParcelado ? parseInt(document.getElementById('parcelas').value) : 1;
+        
+        // Separa dia, mes e ano do vencimento
+        const [ano, mes, dia] = vencimento.split('-').map(Number);
+
+        if (isParcelado && (!parcelas || parcelas < 2)) {
+            alert('O número de parcelas deve ser no mínimo 2.');
+            return;
+        }
+
+        try {
+            const res = await fetch('https://controlegastos-production.up.railway.app/gastos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ descricao, valor, dia, mes, ano, parcelas })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                alert(data.message);
+                gastoForm.reset();
+                document.getElementById('parcelasContainer').classList.add('hidden');
+                // Adicione a função para recarregar a lista de gastos aqui, se tiver
+                // carregarGastos();
             } else {
-                parcelasContainer.classList.add('hidden');
-                document.getElementById('parcelas').required = false;
+                alert(data.error || 'Erro ao adicionar gasto.');
             }
-        });
+        } catch (error) {
+            console.error('Erro ao adicionar gasto:', error);
+            alert('Não foi possível conectar ao servidor.');
+        }
+    });
 
-        // Adiciona a lógica para o envio do formulário de gastos
-        const gastoForm = document.getElementById('gastoForm');
-        gastoForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('Sessão expirada. Faça login novamente.');
-                window.location.href = 'index.html';
-                return;
-            }
+    // Remova o script.js do seu projeto
+    // O código acima substitui a necessidade do arquivo externo.
 
-            const descricao = document.getElementById('descricao').value;
-            const valor = parseFloat(document.getElementById('valor').value);
-            const dia = parseInt(document.getElementById('dia').value);
-            const mes = parseInt(document.getElementById('mes').value);
-            const ano = parseInt(document.getElementById('ano').value);
-
-            // Campos para parcelamento
-            const isParcelado = document.getElementById('isParcelado').checked;
-            const parcelas = isParcelado ? parseInt(document.getElementById('parcelas').value) : 1;
-
-            if (isParcelado && (!parcelas || parcelas < 2)) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Erro!',
-                    text: 'O número de parcelas deve ser no mínimo 2.'
-                });
-                return;
-            }
-
-            try {
-                const res = await fetch('https://controlegastos-production.up.railway.app/gastos', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ descricao, valor, dia, mes, ano, parcelas })
-                });
-
-                const data = await res.json();
-
-                if (res.ok) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Sucesso!',
-                        text: data.message,
-                        showConfirmButton: false,
-                        timer: 1500
-                    });
-                    gastoForm.reset();
-                    
-                    document.getElementById('parcelasContainer').classList.add('hidden'); 
-                    carregarGastos(); 
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Erro!',
-                        text: data.error || 'Erro ao adicionar gasto.'
-                    });
-                }
-            } catch (error) {
-                console.error('Erro ao adicionar gasto:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Erro!',
-                    text: 'Não foi possível conectar ao servidor.'
-                });
-            }
-        });
-    </script>
+  </script>
 </body>
 </html>
-
