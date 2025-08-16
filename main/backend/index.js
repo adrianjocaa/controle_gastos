@@ -144,23 +144,21 @@ app.get('/gastos', autenticarToken, (req, res) => {
     });
 });
 
-// A ROTA ABAIXO FOI REVERTIDA PARA ADICIONAR APENAS GASTOS SIMPLES
 app.post('/gastos', autenticarToken, (req, res) => {
     const { descricao, valor, vencimento } = req.body;
-    const userId = req.user.id;
 
-    if (!descricao || !valor || !vencimento) {
-        return res.status(400).json({ error: 'Descrição, valor e vencimento são obrigatórios.' });
+    if (!descricao || isNaN(valor) || valor <= 0 || !vencimento) {
+        return res.status(400).json({ error: 'Por favor, forneça uma descrição, valor e vencimento válidos para o gasto.' });
     }
 
-    const query = "INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)";
-    db.query(query, [userId, descricao, valor, vencimento], (err) => {
-        if (err) {
-            console.error('Erro ao adicionar gasto:', err);
-            return res.status(500).json({ error: 'Erro ao adicionar o gasto.' });
-        }
-        res.status(201).json({ message: 'Gasto adicionado com sucesso!' });
-    });
+    db.query('INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)',
+        [req.user.id, descricao, valor, vencimento],
+        (err, result) => {
+            if (err) {
+                return res.status(500).json({ error: 'Erro ao adicionar gasto' });
+            }
+            res.status(201).json({ id: result.insertId, descricao, valor, vencimento, valor_pago: 0, status: 'pendente' });
+        });
 });
 
 app.put('/gastos/pagar/:id', autenticarToken, (req, res) => {
@@ -274,4 +272,5 @@ app.get('/limite-gastos', autenticarToken, (req, res) => {
 
 app.listen(3000, () => {
     console.log('Servidor rodando na porta 3000');
+
 });
