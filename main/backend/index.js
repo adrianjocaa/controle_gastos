@@ -144,75 +144,22 @@ app.get('/gastos', autenticarToken, (req, res) => {
     });
 });
 
-// A ROTA ABAIXO FOI ATUALIZADA PARA LIDAR COM GASTOS PARCELADOS
+// A ROTA ABAIXO FOI REVERTIDA PARA ADICIONAR APENAS GASTOS SIMPLES
 app.post('/gastos', autenticarToken, (req, res) => {
-    const { descricao, valor, vencimento, parcelado, quantidade_parcelas } = req.body;
+    const { descricao, valor, vencimento } = req.body;
     const userId = req.user.id;
 
     if (!descricao || !valor || !vencimento) {
         return res.status(400).json({ error: 'Descrição, valor e vencimento são obrigatórios.' });
     }
 
-    const valorTotal = parseFloat(valor);
-
-    db.beginTransaction(err => {
+    const query = "INSERT INTO gastos (usuario_id, descricao, valor, vencimento) VALUES (?, ?, ?, ?)";
+    db.query(query, [userId, descricao, valor, vencimento], (err) => {
         if (err) {
-            return res.status(500).json({ error: 'Erro ao iniciar a transação.' });
+            console.error('Erro ao adicionar gasto:', err);
+            return res.status(500).json({ error: 'Erro ao adicionar o gasto.' });
         }
-
-        const query = "INSERT INTO gastos (usuario_id, descricao, valor, valor_pago, status, vencimento) VALUES (?, ?, ?, ?, ?, ?)";
-        const insertPromises = [];
-
-        if (parcelado && quantidade_parcelas > 1) {
-            const valorParcela = (valorTotal / quantidade_parcelas).toFixed(2);
-            
-            for (let i = 0; i < quantidade_parcelas; i++) {
-                const dataVencimentoOriginal = new Date(vencimento);
-                dataVencimentoOriginal.setMonth(dataVencimentoOriginal.getMonth() + i);
-                
-                const novaDescricao = `${descricao} (${i + 1}/${quantidade_parcelas})`;
-                const novoVencimento = dataVencimentoOriginal.toISOString().split('T')[0];
-                
-                insertPromises.push(new Promise((resolve, reject) => {
-                    db.query(query, [userId, novaDescricao, valorParcela, 0, 'pendente', novoVencimento], (err, result) => {
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve(result);
-                        }
-                    });
-                }));
-            }
-        } else {
-            insertPromises.push(new Promise((resolve, reject) => {
-                db.query(query, [userId, descricao, valorTotal, 0, 'pendente', vencimento], (err, result) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(result);
-                    }
-                });
-            }));
-        }
-
-        Promise.all(insertPromises)
-            .then(() => {
-                db.commit(err => {
-                    if (err) {
-                        return db.rollback(() => {
-                            console.error('Erro ao commitar a transação:', err);
-                            res.status(500).json({ error: 'Erro ao salvar os gastos.' });
-                        });
-                    }
-                    res.status(201).json({ message: 'Gasto(s) adicionado(s) com sucesso!' });
-                });
-            })
-            .catch(err => {
-                db.rollback(() => {
-                    console.error('Erro ao inserir gasto(s):', err);
-                    res.status(500).json({ error: 'Erro ao adicionar o(s) gasto(s).' });
-                });
-            });
+        res.status(201).json({ message: 'Gasto adicionado com sucesso!' });
     });
 });
 
